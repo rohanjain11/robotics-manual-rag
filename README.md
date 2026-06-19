@@ -1,8 +1,14 @@
 # RoboDocs — Robotics Manual RAG
 
-A retrieval-augmented generation (RAG) app for question-answering over robotics technical manuals. Ask about setup, operation, maintenance, safety, or troubleshooting and get answers grounded in indexed PDFs, with source citations (document + page).
+[![Live Demo](https://img.shields.io/badge/demo-live-5B7FA6?style=flat-square)](https://rohanjain11.github.io/robotics-manual-rag/)
+[![API](https://img.shields.io/badge/API-Render-46E3B7?style=flat-square)](https://robodocs-api.onrender.com/health)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-**Live demo:** `https://YOUR_GITHUB_USERNAME.github.io/robotics-manual-rag/` (frontend) · `https://YOUR-RENDER-URL.onrender.com` (API)
+A retrieval-augmented generation (RAG) app for question-answering over robotics technical manuals. Ask about setup, operation, maintenance, safety, or troubleshooting — get answers grounded in indexed PDFs with source citations (document + page).
+
+**Live demo:** [rohanjain11.github.io/robotics-manual-rag](https://rohanjain11.github.io/robotics-manual-rag/)  
+**API:** [robodocs-api.onrender.com](https://robodocs-api.onrender.com)  
+**Repo:** [github.com/rohanjain11/robotics-manual-rag](https://github.com/rohanjain11/robotics-manual-rag)
 
 ## Architecture
 
@@ -16,7 +22,8 @@ User Question → Embed Query → Pinecone Retrieval → GPT-4o-mini → Cited A
 |-------|--------|
 | Backend | Python 3.11+, FastAPI, OpenAI, Pinecone, pdfplumber |
 | Frontend | React 18, Vite, Tailwind CSS, framer-motion |
-| Vector DB | Pinecone serverless (free tier) |
+| Vector DB | Pinecone serverless |
+| Hosting | GitHub Pages (UI) + Render (API) |
 
 ## Features
 
@@ -26,145 +33,92 @@ User Question → Embed Query → Pinecone Retrieval → GPT-4o-mini → Cited A
 - Honest fallback when the manuals do not contain enough information
 - Industrial UI with animated wireframe background
 
-## Prerequisites
+## Indexed content
+
+10 Universal Robots manuals (~3,870 chunks) including UR5e, UR10, e-Series service/software guides, and script tutorials. PDFs are in `backend/data/documents/`.
+
+---
+
+## Quick start (local)
+
+### Prerequisites
 
 - Python 3.11+ (tested on 3.13)
 - Node.js 18+
 - [OpenAI API key](https://platform.openai.com/api-keys)
-- [Pinecone API key](https://app.pinecone.io/) (serverless index)
-- Robotics manual PDFs in `backend/data/documents/`
+- [Pinecone API key](https://app.pinecone.io/)
 
----
-
-## Local development
-
-### 1. Backend
+### Backend
 
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-Place PDFs in `backend/data/documents/`, then ingest:
-
-```bash
-python src/ingest.py
-```
-
-This extracts text, chunks pages, embeds with `text-embedding-3-small`, and upserts to Pinecone. Expect roughly **$0.50 or less** for ~10 PDFs.
-
-Optional — run the 10-question eval script:
-
-```bash
-python src/evaluate.py
-```
-
-Start the API:
-
-```bash
+cp .env.example .env   # add your keys
+python src/ingest.py   # skip if index already populated
 uvicorn src.api:app --reload --port 8000
 ```
 
-### 2. Frontend
+### Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env   # optional; defaults work for local dev
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). Vite proxies `/api/*` to `http://localhost:8000`.
+Open [http://localhost:5173](http://localhost:5173). Vite proxies `/api/*` → `http://localhost:8000`.
+
+Optional eval:
+
+```bash
+cd backend && python src/evaluate.py
+```
 
 ---
 
 ## Deployment
 
-The app splits across two hosts:
+Production is split across two free-tier hosts. Vectors live in Pinecone — ingest once locally, then deploy.
 
-| Service | Host | Role |
-|---------|------|------|
-| API | **Render** | FastAPI backend (chat, documents, health) |
-| UI | **GitHub Pages** | Static React build |
+| Service | URL | Role |
+|---------|-----|------|
+| **Frontend** | https://rohanjain11.github.io/robotics-manual-rag/ | React static site (GitHub Pages) |
+| **API** | https://robodocs-api.onrender.com | FastAPI backend (Render) |
 
-Vectors live in **Pinecone** — you only ingest once locally (or on any machine with the PDFs). The Render service does not need the PDF files at runtime.
+### Backend — Render
 
-### Step 1 — Ingest locally (one time)
-
-```bash
-cd backend
-python src/ingest.py
-```
-
-Confirm your Pinecone index `robotics-manual-rag` has vectors before deploying.
-
-### Step 2 — Deploy backend on Render
-
-**Option A — Blueprint (recommended)**
-
-1. Push this repo to GitHub.
-2. In [Render](https://dashboard.render.com/), click **New → Blueprint** and connect the repo.
-3. Render reads `render.yaml` at the repo root.
-4. Set these secrets in the Render dashboard when prompted:
-   - `OPENAI_API_KEY`
-   - `PINECONE_API_KEY`
-   - `CORS_ORIGINS` — e.g. `https://YOUR_GITHUB_USERNAME.github.io` (comma-separated if you have multiple origins)
-
-**Option B — Manual web service**
-
-| Setting | Value |
-|---------|--------|
-| Root directory | `backend` |
-| Build command | `pip install -r requirements.txt` |
-| Start command | `uvicorn src.api:app --host 0.0.0.0 --port $PORT` |
-| Python version | 3.11 |
-
-Environment variables:
+1. [Render Dashboard](https://dashboard.render.com/) → **New → Blueprint** → connect this repo
+2. `render.yaml` configures the `robodocs-api` web service automatically
+3. Set environment variables:
 
 ```
 OPENAI_API_KEY=...
 PINECONE_API_KEY=...
 PINECONE_INDEX_NAME=robotics-manual-rag
-CORS_ORIGINS=https://YOUR_GITHUB_USERNAME.github.io
+CORS_ORIGINS=https://rohanjain11.github.io
 ```
-
-After deploy, note your API URL, e.g. `https://robodocs-api.onrender.com`.
 
 Verify:
 
 ```bash
-curl https://YOUR-RENDER-URL.onrender.com/health
-curl https://YOUR-RENDER-URL.onrender.com/documents
+curl https://robodocs-api.onrender.com/health
+curl https://robodocs-api.onrender.com/documents
 ```
 
-> **Free tier cold starts:** Render free instances spin down after inactivity. The first request may take 30–60 seconds.
+> Render free tier spins down after inactivity. First request after idle may take 30–60 seconds.
 
-### Step 3 — Deploy frontend on GitHub Pages
+### Frontend — GitHub Pages
 
-1. In your GitHub repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. Add a repository secret:
-   - **`VITE_API_URL`** — your Render URL, e.g. `https://robodocs-api.onrender.com` (no trailing slash)
-3. Push to `main` (or `master`). The workflow in `.github/workflows/deploy-pages.yml` builds and deploys automatically.
+1. **Settings → Pages → Source:** GitHub Actions
+2. **Settings → Secrets → Actions:** add `VITE_API_URL` = `https://robodocs-api.onrender.com`
+3. Push to `main` — `.github/workflows/deploy-pages.yml` builds and deploys
 
-The workflow sets `VITE_BASE_PATH=/robotics-manual-rag/` for project pages. If your repo name differs, edit that value in the workflow file.
+To redeploy after changing the API URL:
 
-Your site will be at:
-
+```bash
+git commit --allow-empty -m "Rebuild frontend"
+git push
 ```
-https://YOUR_GITHUB_USERNAME.github.io/robotics-manual-rag/
-```
-
-### Step 4 — Wire CORS
-
-Ensure Render's `CORS_ORIGINS` includes your GitHub Pages origin:
-
-```
-CORS_ORIGINS=https://YOUR_GITHUB_USERNAME.github.io
-```
-
-Browser requests from `https://username.github.io/robotics-manual-rag/` send `Origin: https://username.github.io`, so the origin is the username subdomain, not the full path.
 
 ---
 
@@ -176,14 +130,14 @@ Browser requests from `https://username.github.io/robotics-manual-rag/` send `Or
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | Embeddings + chat |
 | `PINECONE_API_KEY` | Yes | Vector search |
-| `PINECONE_INDEX_NAME` | Yes | Default: `robotics-manual-rag` |
-| `CORS_ORIGINS` | Prod | Comma-separated allowed origins |
+| `PINECONE_INDEX_NAME` | Yes | `robotics-manual-rag` |
+| `CORS_ORIGINS` | Prod | `http://localhost:5173,https://rohanjain11.github.io` |
 
 ### Frontend (`frontend/.env` / GitHub secret)
 
 | Variable | Local | Production |
 |----------|-------|------------|
-| `VITE_API_URL` | unset (uses `/api` proxy) | Render backend URL |
+| `VITE_API_URL` | unset (uses `/api` proxy) | `https://robodocs-api.onrender.com` |
 | `VITE_BASE_PATH` | `/` | `/robotics-manual-rag/` |
 
 ---
@@ -194,19 +148,17 @@ Browser requests from `https://username.github.io/robotics-manual-rag/` send `Or
 |--------|------|-------------|
 | `POST` | `/chat` | Ask a question with optional filters |
 | `GET` | `/documents` | List indexed document filenames |
-| `GET` | `/health` | Health check |
+| `GET` | `/health` | Health check + Pinecone status |
 
 ### POST /chat
 
 ```json
 {
   "message": "What is the emergency stop procedure?",
-  "filter_documents": ["UR5_user_manual.pdf"],
+  "filter_documents": ["UR5e_User_Manual_en_Global.pdf"],
   "filter_section": "safety"
 }
 ```
-
-Response:
 
 ```json
 {
@@ -233,7 +185,7 @@ robotics-manual-rag/
 │   │   ├── generate.py            # GPT-4o-mini answers
 │   │   ├── api.py                 # FastAPI routes
 │   │   └── evaluate.py            # Manual eval script
-│   ├── data/documents/            # PDFs (not committed)
+│   ├── data/documents/            # UR manual PDFs
 │   └── artifacts/                 # Manifest, eval output (gitignored)
 └── frontend/
     ├── src/
@@ -248,7 +200,7 @@ robotics-manual-rag/
 
 **Document filter** — limits retrieval to selected PDF filenames.
 
-**Section filter** — limits to chunks tagged at ingest time by keyword heuristics:
+**Section filter** — limits to chunks tagged at ingest by keyword heuristics:
 
 | Section | Typical content |
 |---------|-----------------|
@@ -269,7 +221,7 @@ Section filters can return chunks from multiple manuals if they share that secti
 | Ingest ~10 PDFs | < $0.50 (embeddings) |
 | Per chat query | < $0.01 (gpt-4o-mini) |
 | Pinecone serverless | Free tier for small indexes |
-| Render + GitHub Pages | Free tiers available |
+| Render + GitHub Pages | Free tiers |
 
 Set an OpenAI spending limit in your dashboard to cap usage.
 
@@ -279,11 +231,12 @@ Set an OpenAI spending limit in your dashboard to cap usage.
 
 | Issue | Fix |
 |-------|-----|
-| CORS error in browser | Add `https://username.github.io` to Render `CORS_ORIGINS` |
-| Blank page on GitHub Pages | Check `VITE_BASE_PATH` matches repo name (`/robotics-manual-rag/`) |
-| API timeout on first request | Render free tier cold start — retry after ~60s |
-| No documents in sidebar | Run `ingest.py`; `/documents` falls back to Pinecone sampling if manifest is missing |
-| `ModuleNotFoundError` on Render | Confirm root directory is `backend` and start command uses `src.api:app` |
+| CORS error in browser | Set `CORS_ORIGINS=https://rohanjain11.github.io` on Render |
+| Blank page on GitHub Pages | Confirm Pages source is **GitHub Actions**; `VITE_BASE_PATH=/robotics-manual-rag/` |
+| API timeout on first request | Render cold start — wait ~60s and retry |
+| No documents in sidebar | Run `ingest.py`; `/documents` falls back to Pinecone if manifest is missing |
+| GitHub Actions build fails | Enable Pages under **Settings → Pages → GitHub Actions** first |
+| Chat works locally, not in prod | Check `VITE_API_URL` secret and redeploy frontend |
 
 ---
 
